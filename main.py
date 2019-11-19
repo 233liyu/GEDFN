@@ -10,6 +10,8 @@ from random import seed
 import time
 import sys
 
+from collections import OrderedDict
+
 tf.reset_default_graph()
 file1 = sys.argv[1]
 file2 = sys.argv[2]
@@ -74,6 +76,7 @@ def max_pool(mat):  # input {mat}rix
 
 
 def multilayer_perceptron(x, weights, biases, keep_prob):
+
     layer_1 = tf.add(tf.matmul(x, tf.multiply(
         weights['h1'], partition)), biases['b1'])
     layer_1 = tf.nn.relu(layer_1)
@@ -87,9 +90,6 @@ def multilayer_perceptron(x, weights, biases, keep_prob):
     layer_2 = tf.nn.dropout(layer_2, keep_prob=keep_prob)
 
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
-    # Do not use batch-norm
-    # layer_3 = tf.contrib.layers.batch_norm(layer_3, center=True, scale=True,
-    #                                   is_training=is_training)
     layer_3 = tf.nn.relu(layer_3)
     layer_3 = tf.nn.dropout(layer_3, keep_prob=keep_prob)
 
@@ -102,20 +102,52 @@ y = tf.placeholder(tf.int32, [None, n_classes])
 keep_prob = tf.placeholder(tf.float32)
 lr = tf.placeholder(tf.float32)
 
-weights = {
-    'h1': tf.Variable(tf.truncated_normal(shape=[n_features, n_hidden_1], stddev=0.1)),
-    'h2': tf.Variable(tf.truncated_normal(shape=[n_hidden_1, n_hidden_2], stddev=0.1)),
-    'h3': tf.Variable(tf.truncated_normal(shape=[n_hidden_2, n_hidden_3], stddev=0.1)),
-    'out': tf.Variable(tf.truncated_normal(shape=[n_hidden_3, n_classes], stddev=0.1))
+n_hidden_1 = np.shape(partition)[0]
+n_hidden_2 = 64
+n_hidden_3 = 16
+n_classes = 2
+n_features = np.shape(expression)[1]
 
+n_hidden = {
+    "layers": [
+        {
+            "name": "h1",
+            # "hidden_num": partition.shape[0],
+            "hidden_num": 500,
+            "limit": False,
+        },
+        {
+            "name": "h2",
+            "hidden_num": 64,
+            "limit": True,
+        },
+        {
+            "name": "h3",
+            "hidden_num": 16,
+            "limit": False,
+            # "weights": tf.Variable(tf.truncated_normal(shape=[n_hidden_2, n_hidden_3], stddev=0.1)),
+        },
+        {
+            "name": "out",
+            "hidden_num": n_classes,
+            "limit": False,
+        }
+    ]
 }
 
-biases = {
-    'b1': tf.Variable(tf.zeros([n_hidden_1])),
-    'b2': tf.Variable(tf.zeros([n_hidden_2])),
-    'b3': tf.Variable(tf.zeros([n_hidden_3])),
-    'out': tf.Variable(tf.zeros([n_classes]))
-}
+# weights = {
+#     'h1': tf.Variable(tf.truncated_normal(shape=[n_features, n_hidden_1], stddev=0.1)),
+#     'h2': tf.Variable(tf.truncated_normal(shape=[n_hidden_1, n_hidden_2], stddev=0.1)),
+#     'h3': tf.Variable(tf.truncated_normal(shape=[n_hidden_2, n_hidden_3], stddev=0.1)),
+#     'out': tf.Variable(tf.truncated_normal(shape=[n_hidden_3, n_classes], stddev=0.1))
+# }
+
+# biases = {
+#     'b1': tf.Variable(tf.zeros([n_hidden_1])),
+#     'b2': tf.Variable(tf.zeros([n_hidden_2])),
+#     'b3': tf.Variable(tf.zeros([n_hidden_3])),
+#     'out': tf.Variable(tf.zeros([n_classes]))
+# }
 
 # Construct model
 pred = multilayer_perceptron(x, weights, biases, keep_prob)
@@ -124,6 +156,9 @@ pred = multilayer_perceptron(x, weights, biases, keep_prob)
 cost = tf.reduce_mean(
     tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 if L2:
+    reg = None
+    for in n_hidden:
+        pass
     reg = tf.nn.l2_loss(weights['h1']) + tf.nn.l2_loss(weights['h2']) + \
         tf.nn.l2_loss(weights['h3']) + tf.nn.l2_loss(weights['out'])
     cost = tf.reduce_mean(cost + 0.01 * reg)
