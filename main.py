@@ -157,8 +157,6 @@ cost = tf.reduce_mean(
     tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 if L2:
     reg = None
-    for in n_hidden:
-        pass
     reg = tf.nn.l2_loss(weights['h1']) + tf.nn.l2_loss(weights['h2']) + \
         tf.nn.l2_loss(weights['h3']) + tf.nn.l2_loss(weights['out'])
     cost = tf.reduce_mean(cost + 0.01 * reg)

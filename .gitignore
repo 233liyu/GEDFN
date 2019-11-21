@@ -1,3 +1,6 @@
 var_impo.csv
 data/
 var_impo.csv
+venv/
+.vscode/
+
