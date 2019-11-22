@@ -12,14 +12,23 @@ import sys
 
 from collections import OrderedDict
 
+from cutil import param_helper, multilayer_perceptron
+
 tf.reset_default_graph()
-file1 = sys.argv[1]
-file2 = sys.argv[2]
-out_file = sys.argv[3]
+
+sing = sys.argv[1]
+feature_index = sys.argv[2]
+nums = sys.argv[3]
+
+# features80sing50num27_adjacency
+file1 = "./data/features"+feature_index+"sing"+sing+"num" + nums + "_expression.csv"
+file2 = "./data/features"+feature_index+"sing"+sing+"num" + nums + "_adjacency.txt"
+out_file = "var_impo.csv"
+save_file = "./result.csv"
 
 ## load in data
 partition = np.loadtxt(file2, dtype=int, delimiter=None)
-expression = np.loadtxt(file1, dtype=float, delimiter=",")
+expression = np.loadtxt(file1, dtype=float, delimiter=",", skiprows=1)
 label_vec = np.array(expression[:, -1], dtype=int)
 expression = np.array(expression[:, :-1])
 labels = []
@@ -55,8 +64,6 @@ gamma_numerator[np.where(gamma_numerator > gamma_c)] = gamma_c
 
 
 n_hidden_1 = np.shape(partition)[0]
-n_hidden_2 = 64
-n_hidden_3 = 16
 n_classes = 2
 n_features = np.shape(expression)[1]
 
@@ -65,69 +72,33 @@ loss_rec = np.zeros([training_epochs, 1])
 training_eval = np.zeros([training_epochs, 2])
 
 
-def max_pool(mat):  # input {mat}rix
-
-    def max_pool_one(instance):
-        return tf.reduce_max(tf.multiply(tf.matmul(tf.reshape(instance, [n_features, 1]), tf.ones([1, n_features])), partition), axis=0)
-
-    out = tf.map_fn(max_pool_one, mat,
-                    parallel_iterations=1000, swap_memory=True)
-    return out
-
-
-def multilayer_perceptron(x, weights, biases, keep_prob):
-
-    layer_1 = tf.add(tf.matmul(x, tf.multiply(
-        weights['h1'], partition)), biases['b1'])
-    layer_1 = tf.nn.relu(layer_1)
-    if max_pooling:
-        layer_1 = max_pool(layer_1)
-    if droph1:
-        layer_1 = tf.nn.dropout(layer_1, keep_prob=keep_prob)
-
-    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf.nn.relu(layer_2)
-    layer_2 = tf.nn.dropout(layer_2, keep_prob=keep_prob)
-
-    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
-    layer_3 = tf.nn.relu(layer_3)
-    layer_3 = tf.nn.dropout(layer_3, keep_prob=keep_prob)
-
-    out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
-    return out_layer
-
-
 x = tf.placeholder(tf.float32, [None, n_features])
 y = tf.placeholder(tf.int32, [None, n_classes])
 keep_prob = tf.placeholder(tf.float32)
 lr = tf.placeholder(tf.float32)
 
-n_hidden_1 = np.shape(partition)[0]
-n_hidden_2 = 64
-n_hidden_3 = 16
-n_classes = 2
-n_features = np.shape(expression)[1]
+print(n_classes, n_features, n_hidden_1)
 
 n_hidden = {
     "layers": [
         {
             "name": "h1",
-            "hidden_num": 500,
-            "limit": False,
+            "hidden_num": n_hidden_1,
+            "limit": True,
         },
         {
             "name": "h2",
             "hidden_num": 64,
-            "limit": True,
-            "drop_out" : True,
-            "max_pool" : True
+            "limit": False,
+            "drop_out": True,
+            # "max_pool": True
         },
         {
             "name": "h3",
             "hidden_num": 16,
             "limit": False,
-            "drop_out" : True,
-            "max_pool" : True
+            "drop_out": True,
+            # "max_pool": True
         },
         {
             "name": "out",
@@ -135,9 +106,9 @@ n_hidden = {
             "limit": False,
         }
     ],
-    "gloable" : {
-        "n_feature" : 500,
-        "n_classes" : 2
+    "gloable": {
+        "n_features": n_features,
+        "n_classes": n_classes
     }
 }
 
@@ -156,15 +127,22 @@ n_hidden = {
 # }
 
 # Construct model
-pred = multilayer_perceptron(x, weights, biases, keep_prob)
+# pred = multilayer_perceptron(x, weights, biases, keep_prob)
+
+param = param_helper(n_hidden)
+pred = multilayer_perceptron(x, param, partition, keep_prob)
+
 
 # Define loss and optimizer
 cost = tf.reduce_mean(
     tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 if L2:
     reg = None
-    reg = tf.nn.l2_loss(weights['h1']) + tf.nn.l2_loss(weights['h2']) + \
-        tf.nn.l2_loss(weights['h3']) + tf.nn.l2_loss(weights['out'])
+    for lay in param.iter_layer():
+        reg += tf.nn.l2_loss(lay.weight)
+
+    # reg = tf.nn.l2_loss(weights['h1']) + tf.nn.l2_loss(weights['h2']) + \
+    #     tf.nn.l2_loss(weights['h3']) + tf.nn.l2_loss(weights['out'])
     cost = tf.reduce_mean(cost + 0.01 * reg)
 optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(cost)
 
@@ -173,8 +151,9 @@ correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 y_score = tf.nn.softmax(logits=pred)
 
-var_left = tf.reduce_sum(tf.abs(tf.multiply(weights['h1'], partition)), 0)
-var_right = tf.reduce_sum(tf.abs(weights['h2']), 1)
+var_left = tf.reduce_sum(
+    tf.abs(tf.multiply(param.layers[0].weight, partition)), 0)
+var_right = tf.reduce_sum(tf.abs(param.layers[1].weight), 1)
 var_importance = tf.add(tf.multiply(tf.multiply(
     var_left, gamma_numerator), 1./gamma_denominator), var_right)
 
@@ -226,3 +205,17 @@ with tf.Session() as sess:
           " Testing auc: ", auc, "=====*****")
 
 np.savetxt(out_file, var_imp, delimiter=",")
+
+import pandas as pd
+
+f = pd.read_csv(save_file)
+f = f.append({
+    "features": feature_index,
+    "sing" : sing,
+    "num" : nums,
+    "l1" : n_hidden['layers'][0]['limit'],
+    "l2" : n_hidden['layers'][0]['limit'],
+    "acc" : acc,
+    "auc" : auc
+}, ignore_index=True)
+f.to_csv(save_file, index=False)

@@ -3,6 +3,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
+
 class layer_obj(object):
     def __init__(self, setting, previous_layer):
         self.name = setting['name']
@@ -13,7 +14,7 @@ class layer_obj(object):
         self.bias = self.get_bias(setting)
         self.max_pool = False if "max_pool" not in setting else setting["max_pool"]
         self.dropout = False if "drop_out" not in setting else setting["drop_out"]
-    
+
     def get_bias(self, setting):
         if "bias" in setting:
             return setting['bias']
@@ -25,9 +26,10 @@ class layer_obj(object):
             return layer_setting["weights"]
         else:
             return tf.Variable(tf.truncated_normal(shape=[previous_layer, layer_setting["hidden_num"]], stddev=0.1))
-    
+
     def get_partition(self, partition):
-        param_select(partition, self.hidden_num)
+        return param_select(partition, self.previous, self.hidden_num)
+
 
 class param_helper(object):
     def __init__(self, hidden_setting):
@@ -42,8 +44,8 @@ class param_helper(object):
 
     def get_weights(self, index):
         assert next(
-            (item for item in self.layers  if item["name"] == index), False)
-    
+            (item for item in self.layers if item["name"] == index), False)
+
     def iter_layer(self):
         return iter(self.layers)
 
@@ -62,82 +64,61 @@ class param_helper(object):
                 return self.layers[self.num]
             else:
                 self.i = 0
-                raise StopIteration()           
+                raise StopIteration()
 
 
-def param_select(partition, param):
-    cp_partition = partition
+def param_select(partition, previous, current):
 
     degree_sum = np.sum(partition, axis=0)
     sort_index = np.argsort(degree_sum)[::-1]
 
     n_node = partition.shape[0]
+    n_partition = np.zeros(previous * current).reshape(previous, current)
 
-    for node_index in range(param, n_node):
-        cp_partition[node_index] = np.zeros(n_node)
-        cp_partition[:, node_index] = np.zeros(n_node)
+    select_index = sort_index[:current]
 
-    print(cp_partition)
-    return cp_partition
+    current_index = sort_index[:previous]
+    current_index.sort()
+
+    i = 0
+    for index in current_index:
+        if index in select_index:
+            n_partition[i] = np.ones(current)
+        i += 1
+
+    return n_partition
+
+# TODO: intergrate into the project
+def max_pool(mat):  # input {mat}rix
+
+    def max_pool_one(instance):
+        return tf.reduce_max(tf.multiply(tf.matmul(tf.reshape(instance, [n_features, 1]), tf.ones([1, n_features])), partition), axis=0)
+
+    out = tf.map_fn(max_pool_one, mat,
+                    parallel_iterations=1000, swap_memory=True)
+    return out
 
 
-
-def multilayer_perceptron(x, param, keep_prob):
+def multilayer_perceptron(x, param, partition, keep_prob):
 
     layers = []
-    last_layer = None
+    last_layer = x
 
-    for layer_param in param:
-        layer = tf.add(tf.matmul(x, tf.multiply(layer_param.weight, layer_param.get_partition(partition))), layer_param.get_bias)
+    for layer_param in param.iter_layer():
+        if layer_param.set_limit:
+            mod_weight = tf.multiply(layer_param.weight, layer_param.get_partition(partition))
+        else:
+            mod_weight = layer_param.weight
+
+        layer = tf.add(tf.matmul(last_layer, mod_weight), layer_param.bias)
         layer = tf.nn.relu(layer)
         if layer_param.max_pool:
             layer = max_pool(layer)
         if layer_param.dropout:
             layer = tf.nn.dropout(layer, keep_prob=keep_prob)
-        
+
         layers.append(layer)
+        last_layer = layer
 
-    return out_layer
+    return layers[-1]
 
-
-n_hidden = {
-    "layers": [
-        {
-            "name": "h1",
-            "hidden_num": 500,
-            "limit": False,
-        },
-        {
-            "name": "h2",
-            "hidden_num": 64,
-            "limit": True,
-            "drop_out" : True,
-            "max_pool" : True
-        },
-        {
-            "name": "h3",
-            "hidden_num": 16,
-            "limit": False,
-            "drop_out" : True,
-            "max_pool" : True
-        },
-        {
-            "name": "out",
-            "hidden_num": 2,
-            "limit": False,
-        }
-    ],
-    "gloable" : {
-        "n_feature" : 500,
-        "n_classes" : 2
-    }
-}
-
-
-
-param = param_helper(n_hidden)
-
-for lay in param.iter_layer():
-    print(lay)
-    print(lay.name)
-    print(lay.bias)

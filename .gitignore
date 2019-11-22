@@ -3,4 +3,4 @@ data/
 var_impo.csv
 venv/
 .vscode/
-
+__pycache__/
