@@ -112,7 +112,6 @@ n_hidden = {
     "layers": [
         {
             "name": "h1",
-            # "hidden_num": partition.shape[0],
             "hidden_num": 500,
             "limit": False,
         },
@@ -120,19 +119,26 @@ n_hidden = {
             "name": "h2",
             "hidden_num": 64,
             "limit": True,
+            "drop_out" : True,
+            "max_pool" : True
         },
         {
             "name": "h3",
             "hidden_num": 16,
             "limit": False,
-            # "weights": tf.Variable(tf.truncated_normal(shape=[n_hidden_2, n_hidden_3], stddev=0.1)),
+            "drop_out" : True,
+            "max_pool" : True
         },
         {
             "name": "out",
-            "hidden_num": n_classes,
+            "hidden_num": 2,
             "limit": False,
         }
-    ]
+    ],
+    "gloable" : {
+        "n_feature" : 500,
+        "n_classes" : 2
+    }
 }
 
 # weights = {
