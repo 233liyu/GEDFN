@@ -16,13 +16,14 @@ from cutil import param_helper, multilayer_perceptron
 
 tf.reset_default_graph()
 
-sing = sys.argv[1]
-feature_index = sys.argv[2]
+feature_index = sys.argv[1]
+sing = sys.argv[2]
 nums = sys.argv[3]
+dict_name = sys.argv[4]
 
 # features80sing50num27_adjacency
-file1 = "./data/features"+feature_index+"sing"+sing+"num" + nums + "_expression.csv"
-file2 = "./data/features"+feature_index+"sing"+sing+"num" + nums + "_adjacency.txt"
+file1 = dict_name + "/features"+feature_index+"sing"+sing+"num" + nums + "_expression.csv"
+file2 = dict_name + "/features"+feature_index+"sing"+sing+"num" + nums + "_adjacency.txt"
 out_file = "var_impo.csv"
 save_file = "./result.csv"
 
@@ -85,17 +86,19 @@ n_hidden = {
             "name": "h1",
             "hidden_num": n_hidden_1,
             "limit": True,
+            "max_pool": False
+
         },
         {
             "name": "h2",
-            "hidden_num": 64,
-            "limit": False,
-            "drop_out": True,
+            "hidden_num": 200,
+            "limit": True,
+            # "drop_out": True,
             # "max_pool": True
         },
         {
             "name": "h3",
-            "hidden_num": 16,
+            "hidden_num": 32,
             "limit": False,
             "drop_out": True,
             # "max_pool": True

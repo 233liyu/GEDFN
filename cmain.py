@@ -38,7 +38,7 @@ y_test = labels[cut:, :]
 
 ## hyper-parameters and settings
 L2 = False
-max_pooling = False
+max_pooling = True
 droph1 = False
 learning_rate = 0.0001
 training_epochs = 100
@@ -70,6 +70,7 @@ def max_pool(mat): ## input {mat}rix
                              , axis=0)
 
     out = tf.map_fn(max_pool_one, mat, parallel_iterations=1000, swap_memory=True)
+    print(out, mat)
     return out
 
 def multilayer_perceptron(x, weights, biases, keep_prob):

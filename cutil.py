@@ -7,7 +7,8 @@ import tensorflow as tf
 class layer_obj(object):
     def __init__(self, setting, previous_layer):
         self.name = setting['name']
-        self.hidden_num = setting['hidden_num']
+        self.hidden_num = setting['hidden_num'] if not setting['limit'] else previous_layer
+        self.select_num = setting['hidden_num']
         self.set_limit = setting['limit']
         self.previous = previous_layer
         self.weight = self.get_weights(setting, previous_layer)
@@ -25,10 +26,10 @@ class layer_obj(object):
         if "weights" in layer_setting:
             return layer_setting["weights"]
         else:
-            return tf.Variable(tf.truncated_normal(shape=[previous_layer, layer_setting["hidden_num"]], stddev=0.1))
+            return tf.Variable(tf.truncated_normal(shape=[previous_layer, self.hidden_num], stddev=0.1))
 
     def get_partition(self, partition):
-        return param_select(partition, self.previous, self.hidden_num)
+        return param_select_t(partition, self.previous, self.select_num)
 
 
 class param_helper(object):
@@ -39,8 +40,9 @@ class param_helper(object):
 
         last_layer = self.features
         for layer in hidden_setting['layers']:
-            self.layers.append(layer_obj(layer, last_layer))
-            last_layer = layer["hidden_num"]
+            layer_temp = layer_obj(layer, last_layer)
+            self.layers.append(layer_temp)
+            last_layer = layer_temp.hidden_num
 
     def get_weights(self, index):
         assert next(
@@ -67,6 +69,22 @@ class param_helper(object):
                 raise StopIteration()
 
 
+def param_select_t(partition, previous, current):
+    cp_partition = partition.copy()
+
+    degree_sum = np.sum(partition, axis=0)
+    sort_index = np.argsort(degree_sum)[::-1]
+
+    n_node = partition.shape[0]
+
+    for node_index in range(current, previous):
+        idx = sort_index[node_index]
+        cp_partition[idx] = np.zeros(n_node)
+        cp_partition[:, idx] = np.zeros(n_node)
+
+    return cp_partition
+
+
 def param_select(partition, previous, current):
 
     degree_sum = np.sum(partition, axis=0)
@@ -89,7 +107,7 @@ def param_select(partition, previous, current):
     return n_partition
 
 # TODO: intergrate into the project
-def max_pool(mat):  # input {mat}rix
+def max_pool(mat, n_features, partition):  # input {mat}rix
 
     def max_pool_one(instance):
         return tf.reduce_max(tf.multiply(tf.matmul(tf.reshape(instance, [n_features, 1]), tf.ones([1, n_features])), partition), axis=0)
@@ -104,16 +122,19 @@ def multilayer_perceptron(x, param, partition, keep_prob):
     layers = []
     last_layer = x
 
+    n_feature = partition.shape[0]
+
     for layer_param in param.iter_layer():
         if layer_param.set_limit:
             mod_weight = tf.multiply(layer_param.weight, layer_param.get_partition(partition))
         else:
             mod_weight = layer_param.weight
 
+
         layer = tf.add(tf.matmul(last_layer, mod_weight), layer_param.bias)
         layer = tf.nn.relu(layer)
         if layer_param.max_pool:
-            layer = max_pool(layer)
+            layer = max_pool(layer, n_feature, partition)
         if layer_param.dropout:
             layer = tf.nn.dropout(layer, keep_prob=keep_prob)
 
